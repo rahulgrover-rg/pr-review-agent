@@ -1,0 +1,43 @@
+name: AI PR Review 
+
+on: 
+  pull_requests:
+    types: [opened, synchronize, reopened] 
+
+permissions: 
+  content: read 
+  pull-requests: write 
+
+jobs: 
+  review: 
+    runs-on: ubuntu-latest 
+    steps: 
+      - name: Check out base branch (not PR head) 
+        uses: actions/checkout@v4
+        with: 
+          ref: ${{ github.event.pull_requests.base.sha }}
+
+      - uses: actions/setup-python@v5 
+        with: 
+          python-version: '3.11'
+      
+      - run: pip install -r requirements.txt 
+
+      - name: Run PR review agent 
+
+      env: 
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        LLM_API_KEY: ${{ secrets.LLM_API_KEY }} 
+        OWNER: ${{ github.repository_owner }}
+        REPO: ${{ github.repository.name }} 
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        AGENT_MODE: ${{ vars.AGENT_MDOE || 'COMMENT_ONLY' }}
+      run: python main.py 
+
+      - name: Upload Audit Log 
+        if: always() 
+        uses: actions/upload-artifact@v4 
+        with: 
+          name: audit-log-pr-${{ github.event.pull_request.number }}
+          path: audit_log.jsonl 
+          if-no-files-found: ignore

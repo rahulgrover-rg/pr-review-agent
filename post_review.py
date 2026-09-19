@@ -59,7 +59,5 @@ def post_review(token, owner, repo, pr_number, body, action="COMMENT"):
     
 
 if __name__ == "__main__":
-    pr_number = 1  
-    review_body = "This is a test review comment."  
-    post_review(GITHUB_TOKEN, OWNER, REPO, pr_number, review_body)
+    a=1
 

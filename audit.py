@@ -4,12 +4,13 @@ import os
 
 LOG_PATH = os.environ.get("AUDIT_LOG_PATH", "audit_log.jsonl")
 
-def build_entry(pr_number, mode, risk_score, reasons, llm_verdict, final_action, rationale) : 
+def build_entry(pr_number, mode, risk_score, risk_band_label, reasons, llm_verdict, final_action, rationale) : 
     return {
         "timestamp" : datetime.datetime.now(datetime.timezone.utc).isoformat(), 
         "pr_number" : pr_number, 
         "mode" : mode,
         "risk_score" : risk_score,
+        "risk_band_label": risk_band_label,
         "risk_reasons" : reasons,
         "llm_recommended" : llm_verdict,
         "action_taken" : final_action,
@@ -33,6 +34,7 @@ def render_markdown(entry) :
         f"- **Timestamp (UTC): ** {entry['timestamp']} \n"
         f"- **Mode: ** `{entry['mode']}` \n"
         f"- **Risk Score: ** {entry['risk_score']}/100 ({entry['risk_score']}) \n"
+        f"- **Risk Band: ** `{entry['risk_band_label']}` \n"
         f"- **LLM Recommended: ** `{entry['llm_recommended']}` \n"
         f"- **Action taken: ** `{entry['action_taken']}` \n"
         f"- **Rationale: ** {entry['rationale']} \n"

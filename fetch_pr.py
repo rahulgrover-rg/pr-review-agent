@@ -17,6 +17,29 @@ def _headers(token) :
         "X-Github-Api-Version": "2022-11-28"
     }
 
+def choose_pr_interactively(prs) : 
+    if not prs: 
+        return None 
+    if len(prs) == 1 : 
+        pr = prs[0] 
+        print(f"One open PR found: #{pr['number']} - {pr['title']}")
+        return pr['number']
+
+    print("\nOpen Pull Requests:")
+    for i, pr in enumerate(prs,1) :
+        head = pr.get("head", {}).get("ref", "?") 
+        print(f" [{i}] #{pr['number']} - {pr['title']}  ({head})")
+    print(" [a] all of them")
+
+    while True: 
+        choice = input("\nWhich PR? ").strip().lower() 
+        if choice == 'a': 
+            return "ALL" 
+        if choice.isdigit() and 1 <= int(choice) <= len(prs) : 
+            return prs[int(choice) - 1]['number'] 
+        print("Invalid choice - enter a number from the list, or 'a'.") 
+
+
 
 def fetch_pull_requests(token, owner, repo, branch=None):    
 
