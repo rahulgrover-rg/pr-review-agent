@@ -7,26 +7,71 @@ load_dotenv()
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 OWNER = os.environ.get("OWNER")
 REPO = os.environ.get("REPO")
+API_ROOT = "https://api.github.com"
+TIMEOUT = 30
 
-
-
-def fetch_pull_requests(GITHUB_TOKEN, OWNER, REPO, branch):    
-    headers = {
-        "Authorization" : f"Bearer {GITHUB_TOKEN}",
-        "Accept" : "application/vnd.github+json"
-    }
-    params = {
-        "state": "open", 
-        "branch": branch
+def _headers(token) : 
+    return {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-Github-Api-Version": "2022-11-28"
     }
 
-    url = f"https://api.github.com/repos/{OWNER}/{REPO}/pulls"
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print(f"Failed to fetch pull requests: {response.status_code}")
+
+def fetch_pull_requests(token, owner, repo, branch=None):    
+
+    params = {"state": "open"}
+
+    if branch: 
+        params["head"] = f"{owner}:{branch}"
+
+    url = f"{API_ROOT}/repos/{owner}/{repo}/pulls"
+
+    try: 
+        response = requests.get(url, headers=_headers(token), params=params, timeout=TIMEOUT)
+    except requests.RequestException as e: 
+        print(f"[fetch_pr] Network error listing PRs: {e}")
         return None
+
+    if not response.ok: 
+        print(f"[fetch_pr] Failed to list PRs: {response.status_code} {response.text[:300]}")
+        return None
+
+    return response.json()
+
+def fetch_pr_files(token, owner, repo, pr_number): 
+    file_paths, additions, deletions, page = [], 0, 0, 1
+
+    while True: 
+        url = f"{API_ROOT}/repos/{owner}/{repo}/pulls/{pr_number}/files"
+        try: 
+            response = requests.get(url, headers=_headers(token), params={"per_page": 100, "page": page}, timeout=TIMEOUT)
+        except requests.RequestException as e :
+            print(f"[fetch_pr] Network error fetching PR files: {e}")
+            return None  
+
+        if not response.ok: 
+            print(f"[fetch_pr] Failed to fetch PR files: {response.status_code} {response.text[:300]}")
+            return None
+
+        batch = response.json() 
+        if not batch : 
+            break 
+
+        for f in batch: 
+            file_paths.append(f.get("filename", ""))
+            additions += f.get("additions", 0)
+            deletions += f.get("deletions", 0)
+
+        if len(batch) < 100 : 
+            break 
+
+        page += 1 
+        if page > 30 : 
+            print("[fetch_pr] Stopping pagination at 3000 files")
+            break
+
+    return file_paths,additions,deletions
 
 if __name__ == "__main__":
     headers = {

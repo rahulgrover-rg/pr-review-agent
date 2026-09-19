@@ -1,33 +1,62 @@
 import requests 
 from dotenv import load_dotenv
 import os 
-from fetch_pr import fetch_pull_requests
-from fetch_diff import fetch_pr_diff
 
 load_dotenv() 
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-OWNER = os.environ.get("OWNER")
-REPO = os.environ.get("REPO")
-BRANCH = "test_branch_1"
+API_ROOT = "https://api.github.com" 
+TIMEOUT = 30
 
-def post_review(GITHUB_TOKEN, OWNER, REPO, pr_number, review_body, review_event= "COMMENT"):
+EVENT_MAP = {
+    "approve" : "APPROVE",
+    "request_changes": "REQUEST_CHANGES",
+    "comment": "COMMENT"
+}
+
+def post_review(token, owner, repo, pr_number, body, action="COMMENT"):
+    event = EVENT_MAP.get(action.lower(), "COMMENT")
+
     headers = {
-        "Authorization" : f"Bearer {GITHUB_TOKEN}",
-        "Accept" : "application/vnd.github+json"
+        "Authorization" : f"Bearer {token}",
+        "Accept" : "application/vnd.github+json", 
+        "X-Github-Api-Version": "2022-11-28", 
     }
 
-    url = f"https://api.github.com/repos/{OWNER}/{REPO}/pulls/{pr_number}/reviews"
-    payload = {
-        "body" : review_body,
-        "event" : review_event
-    }
+    url = f"{API_ROOT}/repos/{owner}/{repo}/pulls/{pr_number}/reviews"
 
-    response = requests.post(url, headers=headers, json=payload)
-    if response.status_code == 200:
-        print(f"Successfully posted review for PR #{pr_number}")
-    else:
-        print(f"Failed to post review for PR #{pr_number}: {response.status_code}")
+    def _send(evt, text) : 
+        try: 
+            return requests.post(url, headers=headers, json= {
+                "body": text,
+                "event": evt
+            }, timeout=TIMEOUT)
+        except requests.RequestException as e : 
+            print(f"[post_review] Network error posting review: {e}")
+            return None
+
+    response = _send(evt=event, text=body)
+
+    if response is None: 
+        return False
+
+    if response.ok : 
+        print(f"[post_review] Posted {event} review on PR #{pr_number}")
+        return True 
+
+    if response.status_code == 422 and event != "COMMENT": 
+        print(f"[post_review] {event} rejected (422) - likely self-review " 
+              f"restiction. Falling back to COMMENT")
+        note = (f"\n\n The agent intended to post **{event}** but Github " 
+                f"rejected it (an account cannot formally review its own PR). " 
+                f"Posted a comment instead.")
+
+        retry = _send("COMMENT", body+note) 
+        if retry is not None and retry.ok : 
+            return True
+
+    print(f"[post_review] Failed: {response.status_code} {response.text[:300]}")
+    return False
+    
 
 if __name__ == "__main__":
     pr_number = 1  

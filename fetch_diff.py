@@ -5,36 +5,27 @@ import requests
 
 load_dotenv() 
 
-OWNER = os.environ.get("OWNER") 
-REPO = os.environ.get("REPO") 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+API_ROOT = "https://api.github.com"
+TIMEOUT = 30
 
-
-def fetch_pr_diff(GITHUB_TOKEN,OWNER, REPO, pr_number):
+def fetch_pr_diff(token, owner, repo, pr_number):
     headers = {
-        "Authorization" : f"Bearer {GITHUB_TOKEN}",
-        "Accept" : "application/vnd.github.v3.diff"
+        "Authorization" : f"Bearer {token}",
+        "Accept" : "application/vnd.github.v3.diff",
+        "X-Github-Api-Version": "2022-11-28",
     } 
-    url = f"https://api.github.com/repos/{OWNER}/{REPO}/pulls/{pr_number}"
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.text    
-    else :
-        print(f"Failed to fetch PR diff: {response.status_code}")
+
+    url = f"{API_ROOT}/repos/{owner}/{repo}/pulls/{pr_number}"
+
+    try: 
+        response = requests.get(url,headers=headers,timeout=TIMEOUT)
+    except requests.RequestException as e : 
+        print(f"[fetch_diff] Network error fetching diff: {e}")
         return None
 
-if __name__ == "__main__":
-    PR = fetch_pull_requests(GITHUB_TOKEN, OWNER, REPO, "test_branch_1")
-    PR_NUMBER = PR[0]["number"] if PR else None 
+    if not response.ok : 
+        print(f"[fetch_diff] Failed to fetch diff: {response.status_code} {response.text[:300]}")
+        return None
 
-    headers = {
-        "Authorization" : f"Bearer {GITHUB_TOKEN}",
-        "Accept" : "application/vnd.github.v3.diff"
-    }
+    return response.text
 
-    url = f"https://api.github.com/repos/{OWNER}/{REPO}/pulls/{PR_NUMBER}"
-    print(url)
-
-    response = requests.get(url, headers=headers) 
-    print(response.status_code)
-    print(response.text)
